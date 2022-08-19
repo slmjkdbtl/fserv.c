@@ -87,6 +87,22 @@ bool isdir(char* path) {
 	return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
 }
 
+void replace(char* src, char* from, char* to) {
+	int srclen = strlen(src);
+	int fromlen = strlen(from);
+	int tolen = strlen(to);
+	int times = 0;
+	char* cur = strstr(src, from);
+	while (cur) {
+		memcpy(cur + tolen, cur + fromlen, src + srclen - cur);
+		memcpy(cur, to, tolen);
+		cur = strstr(cur + tolen, from);
+		times++;
+	}
+	int newlen = srclen + (tolen - fromlen) * times;
+	src[newlen] = '\0';
+}
+
 int main(int argc, char** argv) {
 
 	int port = DEF_PORT;
@@ -138,7 +154,7 @@ int main(int argc, char** argv) {
 	while (1) {
 
 		int conn_fd = accept(sock_fd, NULL, NULL);
-		char req[REQ_SIZE + 1];
+		char req[REQ_SIZE];
 
 		// read request
 		read(conn_fd, req, REQ_SIZE);
@@ -159,9 +175,7 @@ int main(int argc, char** argv) {
 			continue;
 		}
 
-		char path[PATH_SIZE + 1];
-
-		// TODO: handle escaped chars like %20
+		char path[PATH_SIZE];
 
 		// append . in front
 		sprintf(path, ".%.*s", (int)(path_end - path_start), path_start);
@@ -171,11 +185,13 @@ int main(int argc, char** argv) {
 			path[path_end - path_start] = '\0';
 		}
 
+		replace(path, "%20", " ");
+
 		// get Date
 		time_t rawtime;
 		time(&rawtime);
 		struct tm* timeinfo = gmtime(&rawtime);
-		char datebuf[DATE_SIZE + 1];
+		char datebuf[DATE_SIZE];
 
 		size_t datebuf_len = strftime(
 			datebuf,
@@ -186,7 +202,7 @@ int main(int argc, char** argv) {
 
 		if (isdir(path)) {
 
-			char index_path[PATH_SIZE + 1];
+			char index_path[PATH_SIZE];
 			sprintf(index_path, "%s/index.html", path);
 
 			if (isfile(index_path)) {
@@ -206,7 +222,7 @@ int main(int argc, char** argv) {
 				}
 
 				struct dirent* entry;
-				char list[BODY_SIZE + 1];
+				char list[BODY_SIZE];
 				int len = 0;
 
 				len += sprintf(list + len,
@@ -244,7 +260,7 @@ int main(int argc, char** argv) {
 
 				while ((entry = readdir(dir))) {
 					if (entry->d_name[0] != '.') {
-						char epath[PATH_SIZE + 1];
+						char epath[PATH_SIZE];
 						sprintf(epath, "%s/%s", path, entry->d_name);
 						len += sprintf(
 							list + len,
@@ -289,6 +305,7 @@ int main(int argc, char** argv) {
 
 		}
 
+		// TODO: support escaped chars like %20
 		if (!isfile(path)) {
 			writen(conn_fd, "HTTP/1.1 404 Not Found\r\n\r\n:( 404");
 			close(conn_fd);
@@ -339,7 +356,7 @@ int main(int argc, char** argv) {
 		writen(conn_fd, "\r\n");
 
 		// write body
-		char body[BODY_SIZE + 1];
+		char body[BODY_SIZE];
 
 		while (1) {
 			int ret = read(file_fd, body, BODY_SIZE);
