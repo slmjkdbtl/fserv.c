@@ -355,6 +355,7 @@ int main(int argc, char** argv) {
 
 		writen(conn_fd, "\r\n");
 
+		// TODO: fails if body too big
 		// write body
 		char body[BODY_SIZE];
 
